@@ -493,7 +493,8 @@ class FireAnt(Ant):
         "*** YOUR CODE HERE ***"
         self.armor = self.armor - amount
         if self.armor <= 0:
-            [bee.reduce_armor(self.damage) for bee in self.place.bees[:]]
+            for bee in self.place.bees[:]:
+                bee.reduce_armor(self.damage)
             self.place.remove_insect(self)
 
 
@@ -545,7 +546,8 @@ class NinjaAnt(Ant):
 
     def action(self, colony):
         "*** YOUR CODE HERE ***"
-        [bee.reduce_armor(self.damage) for bee in self.place.bees[:]]
+        for bee in self.place.bees[:]:
+                bee.reduce_armor(self.damage)
 
 
 class ScubaThrower(ThrowerAnt):
@@ -634,19 +636,40 @@ class QueenAnt(ScubaThrower):
     food_cost = 6
     impostor_count = 0
     
-
     def __init__(self):
         ScubaThrower.__init__(self)
         "*** YOUR CODE HERE ***"
-       
+        self.armor = QueenAnt.armor
+        self.double_damage_ants = set()
+        self.is_true_queen = QueenAnt.impostor_count == 0
+        if not self.is_true_queen:
+            self.armor = 0
+        else:
+            QueenAnt.impostor_count += 1
 
     def action(self, colony):
         """A queen ant throws a leaf, but also doubles the damage of ants
         in her tunnel.  Impostor queens do only one thing: die."""
         "*** YOUR CODE HERE ***"
-        
+        if self.is_true_queen and self.place is not None:
+            current_place = self.place
+            ScubaThrower.action(self, colony)
 
+            place = current_place
+            while place:
+                ant = place.ant
+                if ant and ant != self and ant not in self.double_damage_ants:
+                    ant.damage *= 2
+                    self.double_damage_ants.add(ant)
+                place = place.exit
 
+            queen_place = QueenPlace(colony.queen, self.place)
+            colony.queen = queen_place
+        else:
+            self.reduce_armor(self.armor)
+
+    
+       
 
 class AntRemover(Ant):
     """Allows the player to remove ants from the board in the GUI."""
@@ -668,6 +691,10 @@ def make_slow(action):
     action -- An action method of some Bee
     """
     "*** YOUR CODE HERE ***"
+    def slowed_action(colony):
+        if colony.time % 2 == 0:
+            action(colony)
+    return slowed_action
 
 def make_stun(action):
     """Return a new action method that does nothing.
@@ -675,18 +702,31 @@ def make_stun(action):
     action -- An action method of some Bee
     """
     "*** YOUR CODE HERE ***"
+    def stunned_action(colony):
+        pass
+    return stunned_action
 
 def apply_effect(effect, bee, duration):
     """Apply a status effect to a Bee that lasts for duration turns."""
     "*** YOUR CODE HERE ***"
-
+    original_action = bee.action
+    affected_action = effect(original_action)
+    def temp_action(colony):
+        nonlocal duration
+        if duration > 0:
+            duration -= 1
+            return affected_action(colony)
+        else:
+            return original_action(colony)
+    bee.action = temp_action
 
 class SlowThrower(ThrowerAnt):
     """ThrowerAnt that causes Slow on Bees."""
 
     name = 'Slow'
     "*** YOUR CODE HERE ***"
-    implemented = False
+    implemented = True
+    food_cost = 4
 
     def throw_at(self, target):
         if target:
@@ -698,7 +738,8 @@ class StunThrower(ThrowerAnt):
 
     name = 'Stun'
     "*** YOUR CODE HERE ***"
-    implemented = False
+    implemented = True
+    food_cost = 6
 
     def throw_at(self, target):
         if target:
